@@ -45,7 +45,6 @@ class TkHost:
         self._thread_queue = queue.SimpleQueue()
 
         self._th = threading.Thread(target=self._tcl_thread)
-        self._th.daemon = True
         self._th.start()
 
     def _call_from(self):
@@ -58,7 +57,7 @@ class TkHost:
         tcl = tk.Tcl()
         tcl.eval('package require Thread')
 
-        command = f'thread::send  {self._main_thread_id} "{self._call_from_name}"'
+        command = f'thread::send -async {self._main_thread_id} "{self._call_from_name}"'
 
         while True:
             item = self._thread_queue.get()
@@ -69,7 +68,7 @@ class TkHost:
 
     def run_sync_soon_threadsafe(self, func):
         """Non-blocking, no-synchronization """
-        self._thread_queue.put(func)
+        self._thread_queue.put_nowait(func)
 
     def done_callback(self, outcome):
         """End the Tcl Thread and the Tk app.
@@ -78,10 +77,9 @@ class TkHost:
         if isinstance(outcome, Error):
             exc = outcome.error
             traceback.print_exception(type(exc), exc, exc.__traceback__)
-        self._thread_queue.put(None)  # unblock _tcl_thread queue
+        self._thread_queue.put_nowait(None)  # unblock _tcl_thread queue
         self._th.join()
         self.root.destroy()
-        self.root.quit()
 
 
 async def get(url, size_guess=1024000):
