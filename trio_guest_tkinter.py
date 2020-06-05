@@ -89,6 +89,8 @@ class TkHost:
 
 class TkDisplay:
     def __init__(self, master):
+        import tkinter.ttk as ttk
+
         self.master = master
         self.progress = ttk.Progressbar(root, length='6i')
         self.progress.pack(fill=tk.BOTH, expand=1)
@@ -111,8 +113,6 @@ class TkDisplay:
 
 
 if __name__ == '__main__':
-    import tkinter.ttk as ttk
-
     root = tk.Tk()
     host = TkHost(root)
     display = TkDisplay(root)
