@@ -14,6 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import trio
+import sys
+import time
+import httpx
+from outcome import Error
+import traceback
 
 import threading
 import tkinter as tk
@@ -21,6 +27,8 @@ import queue
 import traceback
 
 from outcome import Error
+
+FPS = 60
 
 
 class TkHost:
@@ -37,6 +45,7 @@ class TkHost:
         self._thread_queue = queue.SimpleQueue()
 
         self._th = threading.Thread(target=self._tcl_thread)
+        self._th.daemon = True
         self._th.start()
 
     def _call_from(self):
@@ -72,3 +81,51 @@ class TkHost:
         self._thread_queue.put(None)  # unblock _tcl_thread queue
         self._th.join()
         self.root.destroy()
+        self.root.quit()
+
+
+async def get(url, size_guess=1024000):
+    # root is currently spooky action at a distance
+    root.wm_title(f"Fetching {url}...")
+    progress = ttk.Progressbar(root)
+    progress.pack(fill=tk.BOTH, expand=1)
+    cancel_button = tk.Button(root, text='Cancel')
+    cancel_button.pack()
+    with trio.CancelScope() as cscope:
+        cancel_button.configure(command=cscope.cancel)
+        start = time.monotonic()
+        downloaded = 0
+        last_screen_update = time.monotonic()
+        async with httpx.AsyncClient() as client:
+            async with client.stream("GET", url) as response:
+                total = int(response.headers.get("content-length", size_guess))
+                progress.configure(maximum=total)
+                prev_downloaded = 0
+                async for chunk in response.aiter_raw():
+                    downloaded += len(chunk)
+                    if time.monotonic() - last_screen_update > 1 / FPS:
+                        progress.step(downloaded - prev_downloaded)
+                        prev_downloaded = downloaded
+                        last_screen_update = time.monotonic()
+        end = time.monotonic()
+        dur = end - start
+        bytes_per_sec = downloaded / dur
+        print(f"Downloaded {downloaded} bytes in {dur:.2f} seconds")
+        print(f"{bytes_per_sec:.2f} bytes/sec")
+    return 1
+
+
+if __name__ == '__main__':
+    import tkinter.ttk as ttk
+
+    root = tk.Tk()
+    host = TkHost(root)
+    trio.lowlevel.start_guest_run(
+        get,
+        sys.argv[1],
+        1024 * 1024,
+        run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
+        done_callback=host.done_callback,
+    )
+
+    root.mainloop()
