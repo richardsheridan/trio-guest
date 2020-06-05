@@ -24,9 +24,6 @@ import traceback
 import threading
 import tkinter as tk
 import queue
-import traceback
-
-from outcome import Error
 
 FPS = 60
 
@@ -53,6 +50,8 @@ class TkHost:
 
     def _tcl_thread(self):
         # Operates in its own thread, with its own Tcl interpreter
+        # Need to download thread package from
+        # https://github.com/serwy/tkthread/issues/2
 
         tcl = tk.Tcl()
         tcl.eval('package require Thread')
