@@ -72,10 +72,14 @@ class QtDisplay:
 
     def set_cancel(self, fn):
         self.widget.canceled.connect(fn)
+        # lastWindowClosed doesn't seem to matter if canceled is connected
+        # Probably an artifact of the specific way QProgressDialog works
+        app.lastWindowClosed.connect(fn)
 
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)  # prevent app sudden death
     host = QtHost(app)
     display = QtDisplay()
     trio.lowlevel.start_guest_run(
