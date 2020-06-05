@@ -14,31 +14,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import trio
+import queue
 import sys
-import time
-import httpx
-from outcome import Error
-import traceback
-
 import threading
 import tkinter as tk
-import queue
+import traceback
 
-FPS = 60
+import trio
+from outcome import Error
+
+from example_tasks import get
 
 
 class TkHost:
-    def __init__(self, root):
+    def __init__(self, master):
         """TkThread object for the root 'tkinter.Tk' object"""
 
         self._main_thread = threading.current_thread()
-        self.root = root
-        self.root.eval('package require Thread')
-        self._main_thread_id = self.root.eval('thread::id')
+        self.master = master
+        self.master.eval('package require Thread')
+        self._main_thread_id = self.master.eval('thread::id')
 
         self._call_from_data = []  # for main thread
-        self._call_from_name = self.root.register(self._call_from)
+        self._call_from_name = self.master.register(self._call_from)
         self._thread_queue = queue.SimpleQueue()
 
         self._th = threading.Thread(target=self._tcl_thread)
@@ -78,38 +76,30 @@ class TkHost:
             traceback.print_exception(type(exc), exc, exc.__traceback__)
         self._thread_queue.put_nowait(None)  # unblock _tcl_thread queue
         self._th.join()
-        self.root.destroy()
+        self.master.destroy()
 
 
-async def get(url, size_guess=1024000):
-    # root is currently spooky action at a distance
-    root.wm_title(f"Fetching {url}...")
-    progress = ttk.Progressbar(root)
-    progress.pack(fill=tk.BOTH, expand=1)
-    cancel_button = tk.Button(root, text='Cancel')
-    cancel_button.pack()
-    with trio.CancelScope() as cscope:
-        cancel_button.configure(command=cscope.cancel)
-        start = time.monotonic()
-        downloaded = 0
-        last_screen_update = time.monotonic()
-        async with httpx.AsyncClient() as client:
-            async with client.stream("GET", url) as response:
-                total = int(response.headers.get("content-length", size_guess))
-                progress.configure(maximum=total)
-                prev_downloaded = 0
-                async for chunk in response.aiter_raw():
-                    downloaded += len(chunk)
-                    if time.monotonic() - last_screen_update > 1 / FPS:
-                        progress.step(downloaded - prev_downloaded)
-                        prev_downloaded = downloaded
-                        last_screen_update = time.monotonic()
-        end = time.monotonic()
-        dur = end - start
-        bytes_per_sec = downloaded / dur
-        print(f"Downloaded {downloaded} bytes in {dur:.2f} seconds")
-        print(f"{bytes_per_sec:.2f} bytes/sec")
-    return 1
+class TkDisplay:
+    def __init__(self, master):
+        self.master = master
+        self.progress = ttk.Progressbar(root, length='6i')
+        self.progress.pack(fill=tk.BOTH, expand=1)
+        self.cancel_button = tk.Button(root, text='Cancel')
+        self.cancel_button.pack()
+        self.prev_downloaded = 0
+
+    def set_title(self, title):
+        self.master.wm_title(title)
+
+    def set_max(self, maximum):
+        self.progress.configure(maximum=maximum)
+
+    def set_value(self, downloaded):
+        self.progress.step(downloaded - self.prev_downloaded)
+        self.prev_downloaded = downloaded
+
+    def set_cancel(self, fn):
+        self.cancel_button.configure(command=fn)
 
 
 if __name__ == '__main__':
@@ -117,9 +107,11 @@ if __name__ == '__main__':
 
     root = tk.Tk()
     host = TkHost(root)
+    display = TkDisplay(root)
     trio.lowlevel.start_guest_run(
         get,
         sys.argv[1],
+        display,
         1024 * 1024,
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
         done_callback=host.done_callback,

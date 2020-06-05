@@ -1,22 +1,19 @@
 # From https://gist.github.com/njsmith/d996e80b700a339e0623f97f48bcf0cb
 
-import trio
 import sys
-import time
-import httpx
-from outcome import Error
 import traceback
 
+import httpcore._async.http11
+import trio
 # Can't use PySide2 currently because of
 # https://bugreports.qt.io/projects/PYSIDE/issues/PYSIDE-1313
 from PyQt5 import QtCore, QtWidgets
-
-import httpcore._async.http11
+from outcome import Error
 
 # Default is 4096
-httpcore._async.http11.AsyncHTTP11Connection.READ_NUM_BYTES = 100_000
+from example_tasks import get
 
-FPS = 60
+httpcore._async.http11.AsyncHTTP11Connection.READ_NUM_BYTES = 100_000
 
 # class Reenter(QtCore.QObject):
 #     run = QtCore.Signal(object)
@@ -58,39 +55,34 @@ class QtHost:
         self.app.quit()
 
 
-async def get(url, size_guess=1024000):
-    dialog = QtWidgets.QProgressDialog(f"Fetching {url}...", "Cancel", 0, 0)
-    # Always show the dialog
-    dialog.setMinimumDuration(0)
-    with trio.CancelScope() as cscope:
-        dialog.canceled.connect(cscope.cancel)
-        start = time.monotonic()
-        downloaded = 0
-        last_screen_update = time.monotonic()
-        async with httpx.AsyncClient() as client:
-            async with client.stream("GET", url) as response:
-                total = int(response.headers.get("content-length", size_guess))
-                dialog.setMaximum(total)
-                async for chunk in response.aiter_raw():
-                    downloaded += len(chunk)
-                    if time.monotonic() - last_screen_update > 1 / FPS:
-                        dialog.setValue(downloaded)
-                        last_screen_update = time.monotonic()
-        end = time.monotonic()
-        dur = end - start
-        bytes_per_sec = downloaded / dur
-        print(f"Downloaded {downloaded} bytes in {dur:.2f} seconds")
-        print(f"{bytes_per_sec:.2f} bytes/sec")
-    return 1
+class QtDisplay:
+    def __init__(self):
+        self.widget = QtWidgets.QProgressDialog(f"Fetching...", "Cancel", 0, 0)
+        # Always show the dialog
+        self.widget.setMinimumDuration(0)
+
+    def set_title(self, title):
+        self.widget.setLabelText(title)
+
+    def set_max(self, maximum):
+        self.widget.setMaximum(maximum)
+
+    def set_value(self, downloaded):
+        self.widget.setValue(downloaded)
+
+    def set_cancel(self, fn):
+        self.widget.canceled.connect(fn)
 
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     host = QtHost(app)
+    display = QtDisplay()
     trio.lowlevel.start_guest_run(
         get,
         sys.argv[1],
-        1024*1024,
+        display,
+        1024 * 1024,
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
         done_callback=host.done_callback,
     )
