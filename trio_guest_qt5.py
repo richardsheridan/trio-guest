@@ -58,7 +58,7 @@ class QtGuest:
         self.app.quit()
 
 
-async def get(url):
+async def get(url, size_guess=1024000):
     dialog = QtWidgets.QProgressDialog(f"Fetching {url}...", "Cancel", 0, 0)
     # Always show the dialog
     dialog.setMinimumDuration(0)
@@ -69,7 +69,7 @@ async def get(url):
         last_screen_update = time.monotonic()
         async with httpx.AsyncClient() as client:
             async with client.stream("GET", url) as response:
-                total = int(response.headers["content-length"])
+                total = int(response.headers.get("content-length", size_guess))
                 dialog.setMaximum(total)
                 async for chunk in response.aiter_raw():
                     downloaded += len(chunk)
@@ -90,6 +90,7 @@ if __name__ == '__main__':
     trio.lowlevel.start_guest_run(
         get,
         sys.argv[1],
+        1024*1024,
         run_sync_soon_threadsafe=guest.run_sync_soon_threadsafe,
         done_callback=guest.done_callback,
     )
