@@ -35,10 +35,19 @@ class TkHost:
         self._q.popleft()()
 
     def run_sync_soon_threadsafe(self, func):
-        """REALLY not sure about the thread safety here """
+        """Use Tcl "after" command to schedule a function call
+
+        Based on `tkinter source comments <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L1472-L1555>`_
+        the issuance of the tcl call to after itself is thread-safe since it is sent
+        to the `appropriate thread <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L814-L824>`_ on line 1522
+
+        Compare to `tkthread <https://github.com/serwy/tkthread/blob/1f612e1dd46e770bd0d0bb64d7ecb6a0f04875a3/tkthread/__init__.py#L163>`_
+        where definitely thread unsafe `eval <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L1567-L1585>`_
+        is used to send some thread safe signals between tcl interpreters
+        """
         # self.master.after(0, func) # does a fairly intensive wrapping to each func
         self._q.append(func)
-        return self.master.call('after', 0, self._tk_func_name)
+        self.master.call('after', 0, self._tk_func_name)
 
     def done_callback(self, outcome):
         """End the Tcl Thread and the Tk app.
@@ -52,6 +61,8 @@ class TkHost:
 
 class TkDisplay:
     def __init__(self, master):
+        import tkinter.ttk as ttk
+
         self.master = master
         self.progress = ttk.Progressbar(root, length='6i')
         self.progress.pack(fill=tk.BOTH, expand=1)
@@ -75,8 +86,6 @@ class TkDisplay:
 
 
 if __name__ == '__main__':
-    import tkinter.ttk as ttk
-
     root = tk.Tk()
     host = TkHost(root)
     display = TkDisplay(root)
