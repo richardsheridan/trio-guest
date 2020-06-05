@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import collections
 import queue
 import sys
 import threading
@@ -35,7 +36,7 @@ class TkHost:
         self.master.eval('package require Thread')
         self._main_thread_id = self.master.eval('thread::id')
 
-        self._call_from_data = []  # for main thread
+        self._call_from_data = collections.deque()  # for main thread
         self._call_from_name = self.master.register(self._call_from)
         self._thread_queue = queue.SimpleQueue()
 
@@ -43,8 +44,8 @@ class TkHost:
         self._th.start()
 
     def _call_from(self):
-        # This executes in the main thread, called from the Tcl interpreter
-        self._call_from_data.pop(0)()
+        # This executes in the main thread, called from the Tcl interpreter or trio
+        self._call_from_data.popleft()()
 
     def _tcl_thread(self):
         # Operates in its own thread, with its own Tcl interpreter
@@ -66,6 +67,13 @@ class TkHost:
     def run_sync_soon_threadsafe(self, func):
         """Non-blocking, no-synchronization """
         self._thread_queue.put_nowait(func)
+
+    def run_sync_soon_not_threadsafe(self, func):
+        """Not clear if actually faster than threadsafe"""
+        # self.master.after(0, func) # does a fairly intensive wrapping to each func
+        self._call_from_data.append(func)
+        # self.master.call('after', 0, self._call_from_name) # less intensive shuffling in c
+        self.master.eval(f'after 0 {self._call_from_name}')  # literally shoves a string into TCL
 
     def done_callback(self, outcome):
         """End the Tcl Thread and the Tk app.
@@ -112,8 +120,9 @@ if __name__ == '__main__':
         get,
         sys.argv[1],
         display,
-        1024 * 1024,
+        1024 * 1024 * 1.2,
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
+        run_sync_soon_not_threadsafe=host.run_sync_soon_not_threadsafe,
         done_callback=host.done_callback,
     )
 
