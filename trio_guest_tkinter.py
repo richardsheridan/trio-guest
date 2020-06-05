@@ -48,52 +48,8 @@ on the main thread.
 """
 import functools
 import threading
-import sys
-
-# 2/3 compatibility
-if sys.version < '3':
-    import Tkinter as tk
-    import Queue as queue
-else:
-    import tkinter as tk
-    import queue
-
-from ._version import __version__
-
-__all__ = ['TkThread', 'tk', '__version__']
-
-class _Result(object):
-    """Cross-thread synchronization of a result"""
-    def __init__(self):
-        self.event = threading.Event()
-        self.result = None
-        self.is_error = False
-
-    def set(self, result, is_error=False):
-        self.result = result
-        self.is_error = is_error
-        self.event.set()
-
-    def get(self):
-        self.event.wait()
-        if self.is_error:
-            exc_type, exc_value, tb = self.result
-            raise exc_type(exc_value)
-        else:
-            return self.result
-
-
-class _TkIntercept(object):
-    """wrapper to a _tkinter.tkapp object """
-
-    def __init__(self, tk, tkt):
-        self.__tk = tk
-        self.__tkt = tkt
-
-    def __getattr__(self, name):
-        # every member of .tkapp is callable
-        func = getattr(self.__tk, name)
-        return functools.partial(self.__tkt, func)
+import tkinter as tk
+import queue
 
 
 class TkThread(object):
@@ -107,37 +63,17 @@ class TkThread(object):
 
         self._call_from_data = []  # for main thread
         self._call_from_name = self.root.register(self._call_from)
-        self._thread_queue = queue.Queue()
-        self._results = set()
+        self._thread_queue = queue.SimpleQueue()
 
         self._running = True
         self._th = threading.Thread(target=self._tcl_thread)
         self._th.daemon = True
         self._th.start()
 
-    def install(self):
-        """Automatically redirect Python-to-Tk calls"""
-        # there is a performance penalty for main-thread-only code
-        if self.root.children:
-            raise RuntimeError('root can not have children')
-        new_tk = _TkIntercept(self.root.tk, self)
-        self.root.tk = new_tk
-        return self
-
     def _call_from(self):
         # This executes in the main thread, called from the Tcl interpreter
         func, args, kwargs, tres = self._call_from_data.pop(0)
-        try:
-            error = False
-            result = func(*args, **kwargs)
-        except BaseException as exc:
-            error = True
-            result = sys.exc_info()
-            raise  # show the error
-        finally:
-            if tres:
-                tres.set(result, error)
-                self._results.discard(tres)
+        func(*args, **kwargs)
 
     def _tcl_thread(self):
         # Operates in its own thread, with its own Tcl interpreter
@@ -154,36 +90,12 @@ class TkThread(object):
             self._call_from_data.append(item)
             tcl.eval(command)
 
-    def __call__(self, func, *args, **kwargs):
-        """Apply args and kwargs to function and return its result"""
-        if threading.current_thread() is self._main_thread:
-            return func(*args, **kwargs)
-        else:
-            tres = _Result()
-            self._results.add(tres)
-            self._thread_queue.put((func, args, kwargs, tres))
-            return tres.get()
-
     def nosync(self, func, *args, **kwargs):
-        """Non-blocking, no-synchronization call"""
+        """Non-blocking, no-synchronization """
         self._thread_queue.put((func, args, kwargs, None))
-
-    def flush(self):
-        """Flush all .nosync calls"""
-        self(int)  # a basic callable to put on the queue
 
     def destroy(self):
         """Destroy the TkThread object.
-        Threads that call into TkThread must be stopped
-        before calling .destroy() to avoid missing pending
-        calls from being set to error.
         """
         self._running = False
         self._thread_queue.put(None)  # unblock _tcl_thread queue
-        while self._results:
-            try:
-                tr = self._results.pop()
-                tr.set((RuntimeError, 'destroyed', None),
-                       is_error=True)
-            except KeyError:
-                pass
