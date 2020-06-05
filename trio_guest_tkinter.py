@@ -14,9 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import queue
+import collections
 import sys
-import threading
 import tkinter as tk
 import traceback
 
@@ -28,44 +27,18 @@ from example_tasks import get
 
 class TkHost:
     def __init__(self, master):
-        """TkThread object for the root 'tkinter.Tk' object"""
-
-        self._main_thread = threading.current_thread()
         self.master = master
-        self.master.eval('package require Thread')
-        self._main_thread_id = self.master.eval('thread::id')
+        self._tk_func_name = master.register(self._tk_func)
+        self._q = collections.deque()
 
-        self._call_from_data = []  # for main thread
-        self._call_from_name = self.master.register(self._call_from)
-        self._thread_queue = queue.SimpleQueue()
-
-        self._th = threading.Thread(target=self._tcl_thread)
-        self._th.start()
-
-    def _call_from(self):
-        # This executes in the main thread, called from the Tcl interpreter
-        self._call_from_data.pop(0)()
-
-    def _tcl_thread(self):
-        # Operates in its own thread, with its own Tcl interpreter
-        # Need to download thread package from
-        # https://github.com/serwy/tkthread/issues/2
-
-        tcl = tk.Tcl()
-        tcl.eval('package require Thread')
-
-        command = f'thread::send -async {self._main_thread_id} "{self._call_from_name}"'
-
-        while True:
-            item = self._thread_queue.get()
-            if item is None:
-                break
-            self._call_from_data.append(item)
-            tcl.eval(command)
+    def _tk_func(self):
+        self._q.popleft()()
 
     def run_sync_soon_threadsafe(self, func):
-        """Non-blocking, no-synchronization """
-        self._thread_queue.put_nowait(func)
+        """REALLY not sure about the thread safety here """
+        # self.master.after(0, func) # does a fairly intensive wrapping to each func
+        self._q.append(func)
+        return self.master.call('after', 0, self._tk_func_name)
 
     def done_callback(self, outcome):
         """End the Tcl Thread and the Tk app.
@@ -74,8 +47,6 @@ class TkHost:
         if isinstance(outcome, Error):
             exc = outcome.error
             traceback.print_exception(type(exc), exc, exc.__traceback__)
-        self._thread_queue.put_nowait(None)  # unblock _tcl_thread queue
-        self._th.join()
         self.master.destroy()
 
 
@@ -100,6 +71,7 @@ class TkDisplay:
 
     def set_cancel(self, fn):
         self.cancel_button.configure(command=fn)
+        self.master.protocol("WM_DELETE_WINDOW", fn) # calls .destroy() by default
 
 
 if __name__ == '__main__':
