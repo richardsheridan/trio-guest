@@ -23,7 +23,7 @@ import traceback
 from outcome import Error
 
 
-class TkGuest:
+class TkHost:
     def __init__(self, root):
         """TkThread object for the root 'tkinter.Tk' object"""
 

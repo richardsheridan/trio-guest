@@ -37,7 +37,7 @@ class Reenter(QtCore.QObject):
         return False
 
 
-class QtGuest:
+class QtHost:
     def __init__(self, app):
         self.app = app
         self.reenter = Reenter()
@@ -86,13 +86,13 @@ async def get(url, size_guess=1024000):
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
-    guest = QtGuest(app)
+    host = QtHost(app)
     trio.lowlevel.start_guest_run(
         get,
         sys.argv[1],
         1024*1024,
-        run_sync_soon_threadsafe=guest.run_sync_soon_threadsafe,
-        done_callback=guest.done_callback,
+        run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
+        done_callback=host.done_callback,
     )
 
     app.exec_()
