@@ -21,7 +21,7 @@ import traceback
 import trio
 from outcome import Error
 
-from example_tasks import get
+from example_tasks import get, check_latency
 
 
 class TkHost:
@@ -42,14 +42,27 @@ class TkHost:
 
         Compare to `tkthread <https://github.com/serwy/tkthread/blob/1f612e1dd46e770bd0d0bb64d7ecb6a0f04875a3/tkthread/__init__.py#L163>`_
         where definitely thread unsafe `eval <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L1567-L1585>`_
-        is used to send some thread safe signals between tcl interpreters
+        is used to send thread safe signals between tcl interpreters
+
+        If .call is called from the Tcl thread, the locking and sending are optimized away
+        so it should be fast enough that the run_sync_soon_not_threadsafe version is unnecessary
         """
         # self.master.after(0, func) # does a fairly intensive wrapping to each func
         self._q.append(func)
         self.master.call('after', 0, self._tk_func_name)
 
+    def run_sync_soon_not_threadsafe(self, func):
+        """Use Tcl "after" command to schedule a function call from the main thread
+
+        Not sure if this is actually an optimization because Tcl parses this eval string fresh each time
+        However it's definitely thread unsafe because the string is fed directly into the Tcl interpreter
+        from the current Python thread
+        """
+        self._q.append(func)
+        self.master.eval(f'after 0 {self._tk_func_name}')
+
     def done_callback(self, outcome):
-        """End the Tcl Thread and the Tk app.
+        """End the Tk app.
         """
         print(f"Outcome: {outcome}")
         if isinstance(outcome, Error):
@@ -63,9 +76,9 @@ class TkDisplay:
         import tkinter.ttk as ttk
 
         self.master = master
-        self.progress = ttk.Progressbar(root, length='6i')
+        self.progress = ttk.Progressbar(master, length='6i')
         self.progress.pack(fill=tk.BOTH, expand=1)
-        self.cancel_button = tk.Button(root, text='Cancel')
+        self.cancel_button = tk.Button(master, text='Cancel')
         self.cancel_button.pack()
         self.prev_downloaded = 0
 
@@ -81,20 +94,24 @@ class TkDisplay:
 
     def set_cancel(self, fn):
         self.cancel_button.configure(command=fn)
-        self.master.protocol("WM_DELETE_WINDOW", fn) # calls .destroy() by default
+        self.master.protocol("WM_DELETE_WINDOW", fn)  # calls .destroy() by default
 
 
-if __name__ == '__main__':
+def main(url):
     root = tk.Tk()
     host = TkHost(root)
     display = TkDisplay(root)
     trio.lowlevel.start_guest_run(
         get,
-        sys.argv[1],
+        url,
         display,
         1024 * 1024,
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
+        # run_sync_soon_not_threadsafe=host.run_sync_soon_not_threadsafe,  # currently recommend threadsafe only
         done_callback=host.done_callback,
     )
-
     root.mainloop()
+
+
+if __name__ == '__main__':
+    main(sys.argv[1])
