@@ -27,3 +27,10 @@ async def get(url, display, size_guess=1024000):
         print(f"Downloaded {downloaded} bytes in {dur:.2f} seconds")
         print(f"{bytes_per_sec:.2f} bytes/sec")
     return 1
+
+
+async def check_latency(frequency):
+    while True:
+        target = trio.current_time() + frequency
+        await trio.sleep_until(target)
+        print(trio.current_time()-target)

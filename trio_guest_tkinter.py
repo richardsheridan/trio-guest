@@ -1,6 +1,5 @@
 #
-# Copyright 2018 Roger D. Serwy
-# Modifications Copyright 2020 Richard J. Sheridan
+# Copyright Copyright 2020 Richard J. Sheridan
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,9 +14,7 @@
 # limitations under the License.
 #
 import collections
-import queue
 import sys
-import threading
 import tkinter as tk
 import traceback
 
@@ -29,61 +26,48 @@ from example_tasks import get
 
 class TkHost:
     def __init__(self, master):
-        """TkThread object for the root 'tkinter.Tk' object"""
-
-        self._main_thread = threading.current_thread()
         self.master = master
-        self.master.eval('package require Thread')
-        self._main_thread_id = self.master.eval('thread::id')
+        self._tk_func_name = master.register(self._tk_func)
+        self._q = collections.deque()
 
-        self._call_from_data = collections.deque()  # for main thread
-        self._call_from_name = self.master.register(self._call_from)
-        self._thread_queue = queue.SimpleQueue()
-
-        self._th = threading.Thread(target=self._tcl_thread)
-        self._th.start()
-
-    def _call_from(self):
-        # This executes in the main thread, called from the Tcl interpreter or trio
-        self._call_from_data.popleft()()
-
-    def _tcl_thread(self):
-        # Operates in its own thread, with its own Tcl interpreter
-        # Need to download thread package from
-        # https://github.com/serwy/tkthread/issues/2
-
-        tcl = tk.Tcl()
-        tcl.eval('package require Thread')
-
-        command = f'thread::send -async {self._main_thread_id} "{self._call_from_name}"'
-
-        while True:
-            item = self._thread_queue.get()
-            if item is None:
-                break
-            self._call_from_data.append(item)
-            tcl.eval(command)
+    def _tk_func(self):
+        self._q.popleft()()
 
     def run_sync_soon_threadsafe(self, func):
-        """Non-blocking, no-synchronization """
-        self._thread_queue.put_nowait(func)
+        """Use Tcl "after" command to schedule a function call
+
+        Based on `tkinter source comments <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L1472-L1555>`_
+        the issuance of the tcl call to after itself is thread-safe since it is sent
+        to the `appropriate thread <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L814-L824>`_ on line 1522
+
+        Compare to `tkthread <https://github.com/serwy/tkthread/blob/1f612e1dd46e770bd0d0bb64d7ecb6a0f04875a3/tkthread/__init__.py#L163>`_
+        where definitely thread unsafe `eval <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L1567-L1585>`_
+        is used to send thread safe signals between tcl interpreters
+
+        If .call is called from the Tcl thread, the locking and sending are optimized away
+        so it should be fast enough that the run_sync_soon_not_threadsafe version is unnecessary
+        """
+        # self.master.after(0, func) # does a fairly intensive wrapping to each func
+        self._q.append(func)
+        self.master.call('after', 0, self._tk_func_name)
 
     def run_sync_soon_not_threadsafe(self, func):
-        """Not clear if actually faster than threadsafe"""
-        # self.master.after(0, func) # does a fairly intensive wrapping to each func
-        self._call_from_data.append(func)
-        # self.master.call('after', 0, self._call_from_name) # less intensive shuffling in c
-        self.master.eval(f'after 0 {self._call_from_name}')  # literally shoves a string into TCL
+        """Use Tcl "after" command to schedule a function call from the main thread
+
+        Not sure if this is actually an optimization because Tcl parses this eval string fresh each time
+        However it's definitely thread unsafe because the string is fed directly into the Tcl interpreter
+        from the current Python thread
+        """
+        self._q.append(func)
+        self.master.eval(f'after 0 {self._tk_func_name}')
 
     def done_callback(self, outcome):
-        """End the Tcl Thread and the Tk app.
+        """End the Tk app.
         """
         print(f"Outcome: {outcome}")
         if isinstance(outcome, Error):
             exc = outcome.error
             traceback.print_exception(type(exc), exc, exc.__traceback__)
-        self._thread_queue.put_nowait(None)  # unblock _tcl_thread queue
-        self._th.join()
         self.master.destroy()
 
 
@@ -92,9 +76,9 @@ class TkDisplay:
         import tkinter.ttk as ttk
 
         self.master = master
-        self.progress = ttk.Progressbar(root, length='6i')
+        self.progress = ttk.Progressbar(master, length='6i')
         self.progress.pack(fill=tk.BOTH, expand=1)
-        self.cancel_button = tk.Button(root, text='Cancel')
+        self.cancel_button = tk.Button(master, text='Cancel')
         self.cancel_button.pack()
         self.prev_downloaded = 0
 
@@ -110,20 +94,24 @@ class TkDisplay:
 
     def set_cancel(self, fn):
         self.cancel_button.configure(command=fn)
+        self.master.protocol("WM_DELETE_WINDOW", fn)  # calls .destroy() by default
 
 
-if __name__ == '__main__':
+def main(url):
     root = tk.Tk()
     host = TkHost(root)
     display = TkDisplay(root)
     trio.lowlevel.start_guest_run(
         get,
-        sys.argv[1],
+        url,
         display,
         1024 * 1024 * 1.2,
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
-        run_sync_soon_not_threadsafe=host.run_sync_soon_not_threadsafe,
+        # run_sync_soon_not_threadsafe=host.run_sync_soon_not_threadsafe,  # currently recommend threadsafe only
         done_callback=host.done_callback,
     )
-
     root.mainloop()
+
+
+if __name__ == '__main__':
+    main(sys.argv[1])
