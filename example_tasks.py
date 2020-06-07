@@ -29,8 +29,13 @@ async def get(url, display, size_guess=1024000):
     return 1
 
 
-async def check_latency(frequency):
-    while True:
-        target = trio.current_time() + frequency
-        await trio.sleep_until(target)
-        print(trio.current_time()-target)
+async def check_latency(frequency, duration):
+    with trio.move_on_after(duration):
+        while True:
+            target = trio.current_time() + frequency
+            await trio.sleep_until(target)
+            print(trio.current_time() - target, flush=True)
+
+
+if __name__ == '__main__':
+    trio.run(check_latency, .01, 1)
