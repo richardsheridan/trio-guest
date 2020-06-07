@@ -1,5 +1,19 @@
 # From https://gist.github.com/njsmith/d996e80b700a339e0623f97f48bcf0cb
-
+#
+# Modifications Copyright 2020 Richard J. Sheridan
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import sys
 import traceback
 
@@ -56,7 +70,8 @@ class QtHost:
 
 
 class QtDisplay:
-    def __init__(self):
+    def __init__(self, app):
+        self.app = app
         self.widget = QtWidgets.QProgressDialog(f"Fetching...", "Cancel", 0, 0)
         # Always show the dialog
         self.widget.setMinimumDuration(0)
@@ -74,14 +89,14 @@ class QtDisplay:
         self.widget.canceled.connect(fn)
         # lastWindowClosed doesn't seem to matter if canceled is connected
         # Probably an artifact of the specific way QProgressDialog works
-        app.lastWindowClosed.connect(fn)
+        self.app.lastWindowClosed.connect(fn)
 
 
-if __name__ == '__main__':
+def main(url):
     app = QtWidgets.QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)  # prevent app sudden death
     host = QtHost(app)
-    display = QtDisplay()
+    display = QtDisplay(app)
     trio.lowlevel.start_guest_run(
         get,
         sys.argv[1],
@@ -92,3 +107,7 @@ if __name__ == '__main__':
     )
 
     app.exec_()
+
+
+if __name__ == '__main__':
+    main(sys.argv[1])
