@@ -95,7 +95,7 @@ def main(url):
     display = QtDisplay(app)
     trio.lowlevel.start_guest_run(
         get,
-        sys.argv[1],
+        url,
         display,
         1024 * 1024,
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
