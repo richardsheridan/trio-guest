@@ -2,6 +2,10 @@ import time
 
 import httpx
 import trio
+import httpcore._async.http11
+
+# Default is 4096
+httpcore._async.http11.AsyncHTTP11Connection.READ_NUM_BYTES = 100_000
 
 
 async def get(url, display, size_guess=1024000):

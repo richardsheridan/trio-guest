@@ -17,17 +17,13 @@
 import sys
 import traceback
 
-import httpcore._async.http11
 import trio
 # Can't use PySide2 currently because of
 # https://bugreports.qt.io/projects/PYSIDE/issues/PYSIDE-1313
 from PyQt5 import QtCore, QtWidgets
 from outcome import Error
 
-# Default is 4096
 from example_tasks import get
-
-httpcore._async.http11.AsyncHTTP11Connection.READ_NUM_BYTES = 100_000
 
 # class Reenter(QtCore.QObject):
 #     run = QtCore.Signal(object)
@@ -105,7 +101,6 @@ def main(url):
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
         done_callback=host.done_callback,
     )
-
     app.exec_()
 
 
