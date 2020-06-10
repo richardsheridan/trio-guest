@@ -38,14 +38,14 @@ class TkHost:
 
         Based on `tkinter source comments <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L1472-L1555>`_
         the issuance of the tcl call to after itself is thread-safe since it is sent
-        to the `appropriate thread <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L814-L824>`_ on line 1522
+        to the `appropriate thread <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L814-L824>`_ on line 1522.
 
         Compare to `tkthread <https://github.com/serwy/tkthread/blob/1f612e1dd46e770bd0d0bb64d7ecb6a0f04875a3/tkthread/__init__.py#L163>`_
         where definitely thread unsafe `eval <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L1567-L1585>`_
-        is used to send thread safe signals between tcl interpreters
+        is used to send thread safe signals between tcl interpreters.
 
         If .call is called from the Tcl thread, the locking and sending are optimized away
-        so it should be fast enough that the run_sync_soon_not_threadsafe version is unnecessary
+        so it should be fast enough that the run_sync_soon_not_threadsafe version is unnecessary.
         """
         # self.master.after(0, func) # does a fairly intensive wrapping to each func
         self._q.append(func)
@@ -54,7 +54,7 @@ class TkHost:
     def run_sync_soon_not_threadsafe(self, func):
         """Use Tcl "after" command to schedule a function call from the main thread
 
-        Not sure if this is actually an optimization because Tcl parses this eval string fresh each time
+        Not sure if this is actually an optimization because Tcl parses this eval string fresh each time.
         However it's definitely thread unsafe because the string is fed directly into the Tcl interpreter
         from the current Python thread
         """
