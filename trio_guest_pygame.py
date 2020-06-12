@@ -20,7 +20,7 @@ import trio
 import pygame
 from outcome import Error
 
-from example_tasks import get, check_latency
+from example_tasks import get
 
 
 class PygameHost:
@@ -61,8 +61,7 @@ class PygameHost:
         if isinstance(outcome, Error):
             exc = outcome.error
             traceback.print_exception(type(exc), exc, exc.__traceback__)
-        self.app.soft_landing()
-        self.app.hard_landing()
+        self.app.quit_soon()
 
 
 class PygameDisplay:
@@ -104,6 +103,7 @@ class PygameApp:
         pygame.fastevent.init()
         pygame.font.init()
         self.running = False
+        self._quitting_soon = False
         self._mouse_cbs = []
         self._quit_cbs = []
 
@@ -113,7 +113,7 @@ class PygameApp:
             for event in pygame.fastevent.get():
                 # print(event)
                 if event.type == pygame.QUIT:
-                    self.soft_landing()
+                    self.quit_soon()
                 elif event.type == pygame.MOUSEBUTTONUP:
                     self._mouse_callback(event.pos, event.button)
                 elif event.type == pygame.USEREVENT:
@@ -139,11 +139,23 @@ class PygameApp:
     def register_quit_cb(self, fn):
         self._quit_cbs.append(fn)
 
-    def soft_landing(self):
+    def quit(self):
         for cb in self._quit_cbs:
             cb()
+        self.running = False
 
-    def hard_landing(self):
+    def quit_soon(self, timeout=.01):
+        if self._quitting_soon:
+            return
+        self._quitting_soon = True
+        for cb in self._quit_cbs:
+            cb()
+        import threading
+        threading.Thread(target=self._quit_delay, args=(timeout,), daemon=True).start()
+
+    def _quit_delay(self, t):
+        import time
+        time.sleep(t)
         self.running = False
 
 
