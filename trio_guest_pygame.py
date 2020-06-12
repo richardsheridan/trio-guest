@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import collections
 import sys
 import traceback
 
@@ -21,7 +20,7 @@ import trio
 import pygame
 from outcome import Error
 
-from example_tasks import get
+from example_tasks import get, check_latency
 
 
 class PygameHost:
@@ -69,10 +68,15 @@ class PygameHost:
 class PygameDisplay:
     def __init__(self, app):
         self.app = app
+        self.screen = pygame.display.set_mode((640, 480))
+        self.screen.fill((30, 30, 30))
+        self.font = pygame.font.SysFont('Sans', 30)
+        cancelsurf = self.font.render('Cancel', True, (0, 0, 0))
         self.button_rect = pygame.Rect((235, 350), (170, 80))
-        self.app.screen.fill((128, 128, 128), self.button_rect)
+        self.screen.fill((128, 128, 128), self.button_rect)
+        self.screen.blit(cancelsurf, (280, 370))
         self.pbar_rect = pygame.Rect((20, 20), (600, 200))
-        self.app.screen.fill((0, 128, 0), self.pbar_rect)
+        self.screen.fill((0, 128, 0), self.pbar_rect)
         self.maximum = 1
 
     def set_title(self, title):
@@ -84,20 +88,21 @@ class PygameDisplay:
     def set_value(self, downloaded):
         progress_ticks = 600 * downloaded // self.maximum
         progress_rect = pygame.Rect((20, 20), (progress_ticks, 200))
-        self.app.screen.fill((0, 255, 0), progress_rect)
+        self.screen.fill((0, 255, 0), progress_rect)
+        percentsurf = self.font.render(str(100 * downloaded // self.maximum) + '%', True, (255,) * 3, (20,) * 3)
+        self.screen.blit(percentsurf, (300, 250))
 
     def set_cancel(self, fn):
         self.app.register_mouse_cb(fn, self.button_rect)
         self.app.register_quit_cb(fn)
 
 
-# I know it's rare to put a pygame app into a class but I wanted to match the program structure of the others
+# I know it's rare to put a simple pygame app into a class but I wanted to match the program structure of the others
 class PygameApp:
     def __init__(self):
         pygame.display.init()
         pygame.fastevent.init()
-        self.screen = pygame.display.set_mode((640, 480))
-        self.screen.fill((30, 30, 30))
+        pygame.font.init()
         self.running = False
         self._mouse_cbs = []
         self._quit_cbs = []
@@ -106,7 +111,7 @@ class PygameApp:
         self.running = True
         while self.running:
             for event in pygame.fastevent.get():
-                #print(event)
+                # print(event)
                 if event.type == pygame.QUIT:
                     self.soft_landing()
                 elif event.type == pygame.MOUSEBUTTONUP:
@@ -115,7 +120,7 @@ class PygameApp:
                     event.thunk()  # don't forget to add some ifs here if other USEREVENTS appear
                 else:
                     pass
-                    #print('unused event:', event)
+                    # print('unused event:', event)
             pygame.display.flip()
         pygame.quit()
 
@@ -123,9 +128,7 @@ class PygameApp:
         for cb in self._mouse_cbs:
             cb(pos, button)
 
-    def register_mouse_cb(self, fn, rect=None, button=1):
-        if rect is None:
-            rect = self.screen.get_rect()
+    def register_mouse_cb(self, fn, rect, button=1):
 
         def mousewrapper(pos, _button):
             if rect.collidepoint(pos) and button == _button:
@@ -141,7 +144,7 @@ class PygameApp:
             cb()
 
     def hard_landing(self):
-        self.running=False
+        self.running = False
 
 
 def main(url):
