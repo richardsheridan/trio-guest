@@ -88,16 +88,14 @@ class QtDisplay:
         self.app.lastWindowClosed.connect(fn)
 
 
-def main(url):
+def main(task):
     app = QtWidgets.QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)  # prevent app sudden death
     host = QtHost(app)
     display = QtDisplay(app)
     trio.lowlevel.start_guest_run(
-        get,
-        url,
+        task,
         display,
-        1024 * 1024,
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
         done_callback=host.done_callback,
     )
@@ -105,4 +103,4 @@ def main(url):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    main(get)

@@ -1,4 +1,8 @@
+import math
+import sys
 import time
+import warnings
+from functools import partial
 
 import httpx
 import trio
@@ -8,7 +12,9 @@ import httpcore._async.http11
 httpcore._async.http11.AsyncHTTP11Connection.READ_NUM_BYTES = 100_000
 
 
-async def get(url, display, size_guess=1024000):
+async def get(display):
+    size_guess = 1024 * 1024 * 6 // 5
+    url = sys.argv[1]
     fps = 60
     display.set_title(f"Fetching {url}...")
     with trio.CancelScope() as cscope:
@@ -33,13 +39,17 @@ async def get(url, display, size_guess=1024000):
     return 1
 
 
-async def check_latency(frequency, duration):
-    with trio.move_on_after(duration):
+async def check_latency(display=None, period=0.1, duration=math.inf):
+    with trio.move_on_after(duration) as cscope:
+        if display is not None:
+            display.set_cancel(cscope.cancel)
+        elif duration == math.inf:
+            warnings.warn("check_latency may not terminate until the process is killed")
         while True:
-            target = trio.current_time() + frequency
+            target = trio.current_time() + period
             await trio.sleep_until(target)
             print(trio.current_time() - target, flush=True)
 
 
 if __name__ == '__main__':
-    trio.run(check_latency, .01, 1)
+    trio.run(partial(check_latency,duration=2,))

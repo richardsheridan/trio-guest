@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import sys
 import traceback
 
 import trio
@@ -64,14 +63,12 @@ class TqdmDisplay:
         pass
 
 
-async def amain(url):
+async def amain(task):
     host = AioHost(asyncio.get_running_loop())
     display = TqdmDisplay()
     trio.lowlevel.start_guest_run(
-        get,
-        url,
+        task,
         display,
-        1024 * 1024 * 1.2,
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
         run_sync_soon_not_threadsafe=host.run_sync_soon_not_threadsafe,
         done_callback=host.done_callback,
@@ -82,9 +79,9 @@ async def amain(url):
     return outcome.unwrap()
 
 
-def main(url):
-    asyncio.run(amain(url))
+def main(task):
+    asyncio.run(amain(task))
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    main(get)

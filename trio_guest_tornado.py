@@ -19,7 +19,6 @@ This is a little pointless after Tornado 6.0 since IOLoop is a thin wrapper on a
 In that case, consider grabbing IOLoop.asyncio_loop
 """
 
-import sys
 import traceback
 
 import trio
@@ -67,15 +66,13 @@ class TqdmDisplay:
         pass
 
 
-async def amain(url):
+async def amain(task):
     loop = tornado.ioloop.IOLoop.current()
     host = TornadoHost(loop)
     display = TqdmDisplay()
     trio.lowlevel.start_guest_run(
-        get,
-        url,
+        task,
         display,
-        1024 * 1024 * 1.2,
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
         done_callback=host.done_callback,
         host_uses_signal_set_wakeup_fd=True,
@@ -86,11 +83,11 @@ async def amain(url):
     return outcome.unwrap()
 
 
-def main(url):
+def main(task):
     loop = tornado.ioloop.IOLoop.current()
-    loop.add_callback(amain, url)
+    loop.add_callback(amain, task)
     loop.start()
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    main(get)

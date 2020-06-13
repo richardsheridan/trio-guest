@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 import collections
-import sys
 import tkinter as tk
 import traceback
 
@@ -97,15 +96,13 @@ class TkDisplay:
         self.master.protocol("WM_DELETE_WINDOW", fn)  # calls .destroy() by default
 
 
-def main(url):
+def main(task):
     root = tk.Tk()
     host = TkHost(root)
     display = TkDisplay(root)
     trio.lowlevel.start_guest_run(
-        get,
-        url,
+        task,
         display,
-        1024 * 1024 * 1.2,
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
         # run_sync_soon_not_threadsafe=host.run_sync_soon_not_threadsafe,  # currently recommend threadsafe only
         done_callback=host.done_callback,
@@ -114,4 +111,4 @@ def main(url):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    main(get)
