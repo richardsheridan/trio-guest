@@ -61,7 +61,7 @@ class PygameHost:
         if isinstance(outcome, Error):
             exc = outcome.error
             traceback.print_exception(type(exc), exc, exc.__traceback__)
-        self.app.quit_soon()
+        self.app.quit()
 
 
 class PygameDisplay:
@@ -103,9 +103,8 @@ class PygameApp:
         pygame.fastevent.init()
         pygame.font.init()
         self.running = False
-        self._quitting_soon = False
         self._mouse_cbs = []
-        self._quit_cbs = []
+        self._quit_cb = self.quit
 
     def mainloop(self):
         self.running = True
@@ -113,7 +112,7 @@ class PygameApp:
             for event in pygame.fastevent.get():
                 # print(event)
                 if event.type == pygame.QUIT:
-                    self.quit_soon()
+                    self._quit_cb()
                 elif event.type == pygame.MOUSEBUTTONUP:
                     self._mouse_callback(event.pos, event.button)
                 elif event.type == pygame.USEREVENT:
@@ -130,32 +129,16 @@ class PygameApp:
 
     def register_mouse_cb(self, fn, rect, button=1):
 
-        def mousewrapper(pos, _button):
+        def mouse_wrapper(pos, _button):
             if rect.collidepoint(pos) and button == _button:
                 fn()
 
-        self._mouse_cbs.append(mousewrapper)
+        self._mouse_cbs.append(mouse_wrapper)
 
     def register_quit_cb(self, fn):
-        self._quit_cbs.append(fn)
+        self._quit_cb = fn
 
     def quit(self):
-        for cb in self._quit_cbs:
-            cb()
-        self.running = False
-
-    def quit_soon(self, timeout=.01):
-        if self._quitting_soon:
-            return
-        self._quitting_soon = True
-        for cb in self._quit_cbs:
-            cb()
-        import threading
-        threading.Thread(target=self._quit_delay, args=(timeout,), daemon=True).start()
-
-    def _quit_delay(self, t):
-        import time
-        time.sleep(t)
         self.running = False
 
 
