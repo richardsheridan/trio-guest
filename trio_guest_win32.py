@@ -15,12 +15,9 @@
 #
 import traceback
 
-import timer  # from pywin32
-import tqdm
 import trio
 import win32api
 import win32con
-import win32event
 import win32gui
 import win32ui
 from outcome import Error
