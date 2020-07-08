@@ -15,9 +15,11 @@ httpcore._async.http11.AsyncHTTP11Connection.READ_NUM_BYTES = 100_000
 async def get(display):
     try:
         url = sys.argv[1]
-        size_guess = int(sys.argv[2])
     except IndexError:
         url = "http://google.com/"
+    try:
+        size_guess = int(sys.argv[2])
+    except IndexError:
         size_guess = 5269
     fps = 60
     display.set_title(f"Fetching {url}...")
