@@ -30,7 +30,6 @@ TRIO_MSG = win32con.WM_USER + 3
 
 class Win32Host:
     def __init__(self, shutdown):
-        global trio_functions
         self.shutdown = shutdown
         self.funcs = trio_functions
         self.mainthreadid = win32api.GetCurrentThreadId()
