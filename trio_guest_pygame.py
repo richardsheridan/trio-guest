@@ -62,6 +62,9 @@ class PygameHost:
             traceback.print_exception(type(exc), exc, exc.__traceback__)
         self.app.quit()
 
+    def mainloop(self):
+        self.app.mainloop()
+
 
 class PygameDisplay:
     def __init__(self, app):
@@ -152,7 +155,7 @@ def main(task):
         run_sync_soon_not_threadsafe=host.run_sync_soon_not_threadsafe,
         done_callback=host.done_callback,
     )
-    app.mainloop()
+    host.mainloop()
 
 
 if __name__ == '__main__':

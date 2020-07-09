@@ -24,9 +24,9 @@ from example_tasks import get
 
 
 class TkHost:
-    def __init__(self, master):
-        self.master = master
-        self._tk_func_name = master.register(self._tk_func)
+    def __init__(self, root):
+        self.root = root
+        self._tk_func_name = root.register(self._tk_func)
         self._q = collections.deque()
 
     def _tk_func(self):
@@ -48,7 +48,7 @@ class TkHost:
         """
         # self.master.after(0, func) # does a fairly intensive wrapping to each func
         self._q.append(func)
-        self.master.call('after', 0, self._tk_func_name)
+        self.root.call('after', 0, self._tk_func_name)
 
     def run_sync_soon_not_threadsafe(self, func):
         """Use Tcl "after" command to schedule a function call from the main thread
@@ -58,7 +58,7 @@ class TkHost:
         from the current Python thread
         """
         self._q.append(func)
-        self.master.eval(f'after 0 {self._tk_func_name}')
+        self.root.eval(f'after 0 {self._tk_func_name}')
 
     def done_callback(self, outcome):
         """End the Tk app.
@@ -67,7 +67,10 @@ class TkHost:
         if isinstance(outcome, Error):
             exc = outcome.error
             traceback.print_exception(type(exc), exc, exc.__traceback__)
-        self.master.destroy()
+        self.root.destroy()
+
+    def mainloop(self):
+        self.root.mainloop()
 
 
 class TkDisplay:
@@ -107,7 +110,7 @@ def main(task):
         # run_sync_soon_not_threadsafe=host.run_sync_soon_not_threadsafe,  # currently recommend threadsafe only
         done_callback=host.done_callback,
     )
-    root.mainloop()
+    host.mainloop()
 
 
 if __name__ == '__main__':

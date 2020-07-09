@@ -64,6 +64,9 @@ class QtHost:
             traceback.print_exception(type(exc), exc, exc.__traceback__)
         self.app.quit()
 
+    def mainloop(self):
+        self.app.exec_()
+
 
 class QtDisplay:
     def __init__(self, app):
@@ -99,7 +102,7 @@ def main(task):
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
         done_callback=host.done_callback,
     )
-    app.exec_()
+    host.mainloop()
 
 
 if __name__ == '__main__':
