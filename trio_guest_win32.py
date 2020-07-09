@@ -27,10 +27,20 @@ from example_tasks import get
 
 TRIO_MSG = win32con.WM_APP + 3
 
+trio_functions = {}
+
+
+# @cffi.def_extern()  # if your mainloop is in C/C++
+def do_trio(lparam):
+    try:
+        trio_functions.pop(lparam)()
+    except KeyError:  # redundant posted messages
+        pass
+
 
 class Win32Host:
-    def __init__(self, shutdown):
-        self.shutdown = shutdown
+    def __init__(self, display):
+        self.display = display
         self.funcs = trio_functions
         self.mainthreadid = win32api.GetCurrentThreadId()
         # create event queue with null op
@@ -65,7 +75,32 @@ class Win32Host:
             exitcode = 1
         else:
             exitcode = 0
-        self.shutdown(exitcode)
+        self.display.dialog.PostMessage(win32con.WM_CLOSE, 0, 0)
+        self.display.dialog.close()
+        win32gui.PostQuitMessage(exitcode)
+
+    def mainloop(self):
+        while True:
+            code, msg = win32gui.GetMessage(0, 0, 0)
+            if not code:
+                break
+            if code < 0:
+                error = win32api.GetLastError()
+                raise RuntimeError(error)
+
+            #######################################
+            ### Trio specific part of main loop ###
+            #######################################
+            hwnd, msgid, lparam, wparam, time, point = msg
+            if hwnd == win32con.NULL and msgid == TRIO_MSG:
+                do_trio(lparam)
+                continue
+            ###############################
+            ### Trio specific part ends ###
+            ###############################
+
+            win32gui.TranslateMessage(msg)
+            win32gui.DispatchMessage(msg)
 
 
 def MakeDlgTemplate():
@@ -111,44 +146,28 @@ class PBarDialog(dialog.Dialog):
 
 class Win32Display:
     def __init__(self):
-        self.display = PBarDialog(MakeDlgTemplate())
-        self.display.CreateWindow()
+        self.dialog = PBarDialog(MakeDlgTemplate())
+        self.dialog.CreateWindow()
         # self.display.DoModal()
 
     def set_title(self, title):
-        self.display.SetWindowText(title)
+        self.dialog.SetWindowText(title)
 
     def set_max(self, maximum):
         # hack around uint16 issue
         self.realmax = maximum
-        self.display.pbar.SetRange(0, 65535)
+        self.dialog.pbar.SetRange(0, 65535)
 
     def set_value(self, downloaded):
-        self.display.pbar.SetPos(int((downloaded / self.realmax * 65535)))
+        self.dialog.pbar.SetPos(int((downloaded / self.realmax * 65535)))
 
     def set_cancel(self, fn):
-        self.display.cancelfn = fn
-
-    def shutdown(self, error_code):
-        self.display.PostMessage(win32con.WM_CLOSE, 0, 0)
-        self.display.close()
-        win32gui.PostQuitMessage(error_code)
-
-
-trio_functions = {}
-
-
-# @cffi.def_extern()  # if your mainloop is in C/C++
-def do_trio(lparam):
-    try:
-        trio_functions.pop(lparam)()
-    except KeyError:  # redundant posted messages
-        pass
+        self.dialog.cancelfn = fn
 
 
 def main(task):
     display = Win32Display()
-    host = Win32Host(display.shutdown)
+    host = Win32Host(display)
     trio.lowlevel.start_guest_run(
         task,
         display,
@@ -156,27 +175,7 @@ def main(task):
         run_sync_soon_not_threadsafe=host.run_sync_soon_not_threadsafe,
         done_callback=host.done_callback,
     )
-    while True:
-        code, msg = win32gui.GetMessage(0, 0, 0)
-        if not code:
-            break
-        if code < 0:
-            error = win32api.GetLastError()
-            raise RuntimeError(error)
-
-        #######################################
-        ### Trio specific part of main loop ###
-        #######################################
-        hwnd, msgid, lparam, wparam, time, point = msg
-        if hwnd == win32con.NULL and msgid == TRIO_MSG:
-            do_trio(lparam)
-            continue
-        ###############################
-        ### Trio specific part ends ###
-        ###############################
-
-        win32gui.TranslateMessage(msg)
-        win32gui.DispatchMessage(msg)
+    host.mainloop()
 
 
 if __name__ == "__main__":
