@@ -25,7 +25,7 @@ from pywin.mfc import dialog
 
 from example_tasks import get
 
-TRIO_MSG = win32con.WM_USER + 3
+TRIO_MSG = win32con.WM_APP + 3
 
 
 class Win32Host:
