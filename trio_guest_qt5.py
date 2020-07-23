@@ -31,7 +31,7 @@ from example_tasks import get
 # This is substantially faster than using a signal... for some reason Qt
 # signal dispatch is really slow (and relies on events underneath anyway, so
 # this is strictly less work)
-REENTER_EVENT = QtCore.QEvent.Type(QtCore.QEvent.registerEventType())
+REENTER_EVENT_TYPE = QtCore.QEvent.Type(QtCore.QEvent.registerEventType())
 
 
 class ReenterEvent(QtCore.QEvent):
