@@ -48,7 +48,7 @@ class TkHost:
         """
         # self.master.after(0, func) # does a fairly intensive wrapping to each func
         self._q.append(func)
-        self.root.call('after', 0, self._tk_func_name)
+        self.root.call('after', 'idle', self._tk_func_name)
 
     def run_sync_soon_not_threadsafe(self, func):
         """Use Tcl "after" command to schedule a function call from the main thread
