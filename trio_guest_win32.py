@@ -33,9 +33,11 @@ trio_functions = {}
 # @cffi.def_extern()  # if your mainloop is in C/C++
 def do_trio(lparam):
     try:
-        trio_functions.pop(lparam)()
+        f = trio_functions.pop(lparam)
     except KeyError:  # redundant posted messages
         pass
+    else:
+        f()
 
 
 class Win32Host:
