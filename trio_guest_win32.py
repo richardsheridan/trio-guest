@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import collections
 import traceback
 
 import trio
@@ -27,23 +28,17 @@ from example_tasks import get
 
 TRIO_MSG = win32con.WM_APP + 3
 
-trio_functions = {}
+trio_functions = collections.deque()
 
 
 # @cffi.def_extern()  # if your mainloop is in C/C++
-def do_trio(lparam):
-    try:
-        f = trio_functions.pop(lparam)
-    except KeyError:  # redundant posted messages
-        pass
-    else:
-        f()
+def do_trio():
+    trio_functions.popleft()()
 
 
 class Win32Host:
     def __init__(self, display):
         self.display = display
-        self.funcs = trio_functions
         self.mainthreadid = win32api.GetCurrentThreadId()
         # create event queue with null op
         win32gui.PeekMessage(
@@ -54,18 +49,16 @@ class Win32Host:
         """Use use PostThreadMessage to schedule a callback
         https://docs.microsoft.com/en-us/windows/win32/winmsg/about-messages-and-message-queues
         """
-        fid = id(func)
-        win32api.PostThreadMessage(self.mainthreadid, TRIO_MSG, fid, win32con.NULL)
-        self.funcs[fid] = func
+        win32api.PostThreadMessage(self.mainthreadid, TRIO_MSG, win32con.NULL, win32con.NULL)
+        trio_functions.append(func)
 
     def run_sync_soon_not_threadsafe(self, func):
         """Use use PostMessage to schedule a callback
         https://docs.microsoft.com/en-us/windows/win32/winmsg/about-messages-and-message-queues
         This doesn't provide any real efficiency over threadsafe.
         """
-        fid = id(func)
-        win32api.PostMessage(win32con.NULL, TRIO_MSG, fid, win32con.NULL)
-        self.funcs[fid] = func
+        win32api.PostMessage(win32con.NULL, TRIO_MSG, win32con.NULL, win32con.NULL)
+        trio_functions.append(func)
 
     def done_callback(self, outcome):
         """non-blocking request to end the main loop
@@ -95,7 +88,7 @@ class Win32Host:
             #######################################
             hwnd, msgid, lparam, wparam, time, point = msg
             if hwnd == win32con.NULL and msgid == TRIO_MSG:
-                do_trio(lparam)
+                do_trio()
                 continue
             ###############################
             ### Trio specific part ends ###
