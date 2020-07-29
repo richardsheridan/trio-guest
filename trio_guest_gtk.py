@@ -24,7 +24,7 @@ require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 from outcome import Error
 
-from example_tasks import get
+import example_tasks
 
 
 class GtkHost:
@@ -88,4 +88,4 @@ def main(task):
 
 
 if __name__ == "__main__":
-    main(get)
+    main(example_tasks.count)

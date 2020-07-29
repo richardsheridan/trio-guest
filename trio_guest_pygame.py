@@ -19,7 +19,7 @@ import trio
 import pygame
 from outcome import Error
 
-from example_tasks import get
+import example_tasks
 
 
 class PygameHost:
@@ -159,4 +159,4 @@ def main(task):
 
 
 if __name__ == '__main__':
-    main(get)
+    main(example_tasks.count)

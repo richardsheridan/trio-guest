@@ -24,7 +24,7 @@ import win32ui
 from outcome import Error
 from pywin.mfc import dialog
 
-from example_tasks import get
+import example_tasks
 
 TRIO_MSG = win32con.WM_APP + 3
 
@@ -176,4 +176,4 @@ def main(task):
 if __name__ == "__main__":
     print("Known bug: Dragging the window freezes everything.")
     print("For now only click buttons!")
-    main(get)
+    main(example_tasks.count)

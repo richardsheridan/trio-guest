@@ -54,6 +54,17 @@ async def get(display):
     return 1
 
 
+async def count(display, period=1, max=60):
+    display.set_title(f"Counting every {period} seconds...")
+    display.set_max(60)
+    with trio.CancelScope() as cancel_scope:
+        display.set_cancel(cancel_scope.cancel)
+        for i in range(max):
+            await trio.sleep(period)
+            display.set_value(i)
+    return 1
+
+
 async def check_latency(display=None, period=0.1, duration=math.inf):
     with trio.move_on_after(duration) as cscope:
         if display is not None:

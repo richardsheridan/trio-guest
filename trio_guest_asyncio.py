@@ -20,7 +20,7 @@ import trio
 import asyncio
 from outcome import Error
 
-from example_tasks import get
+import example_tasks
 import tqdm
 
 
@@ -84,4 +84,4 @@ def main(task):
 
 
 if __name__ == '__main__':
-    main(get)
+    main(example_tasks.count)

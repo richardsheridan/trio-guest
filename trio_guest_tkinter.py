@@ -20,7 +20,7 @@ import traceback
 import trio
 from outcome import Error
 
-from example_tasks import get
+import example_tasks
 
 
 class TkHost:
@@ -114,4 +114,4 @@ def main(task):
 
 
 if __name__ == '__main__':
-    main(get)
+    main(example_tasks.count)

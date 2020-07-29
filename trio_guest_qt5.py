@@ -23,7 +23,7 @@ import trio
 from PyQt5 import QtCore, QtWidgets
 from outcome import Error
 
-from example_tasks import get
+import example_tasks
 
 # class Reenter(QtCore.QObject):
 #     run = QtCore.Signal(object)
@@ -53,7 +53,7 @@ class QtHost:
         # self.run_sync_soon_threadsafe = self.reenter.run.emit
 
     def run_sync_soon_threadsafe(self, fn):
-        event = ReenterEvent(REENTER_EVENT)
+        event = ReenterEvent(REENTER_EVENT_TYPE)
         event.fn = fn
         self.app.postEvent(self.reenter, event)
 
@@ -106,4 +106,4 @@ def main(task):
 
 
 if __name__ == '__main__':
-    main(get)
+    main(example_tasks.count)
