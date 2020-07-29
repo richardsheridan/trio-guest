@@ -58,7 +58,7 @@ class TkHost:
         from the current Python thread
         """
         self._q.append(func)
-        self.root.eval(f'after 0 {self._tk_func_name}')
+        self.root.eval(f'after idle {self._tk_func_name}')
 
     def done_callback(self, outcome):
         """End the Tk app.
