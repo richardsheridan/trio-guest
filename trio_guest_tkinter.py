@@ -38,27 +38,33 @@ class TkHost:
         Based on `tkinter source comments <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L1472-L1555>`_
         the issuance of the tcl call to after itself is thread-safe since it is sent
         to the `appropriate thread <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L814-L824>`_ on line 1522.
+        Tkapp_ThreadSend effectively uses "after 0" while putting the command in the
+        event queue so the `"after idle after 0" <https://wiki.tcl-lang.org/page/after#096aeab6629eae8b244ae2eb2000869fbe377fa988d192db5cf63defd3d8c061>`_ incantation
+        is unnecessary here.
 
         Compare to `tkthread <https://github.com/serwy/tkthread/blob/1f612e1dd46e770bd0d0bb64d7ecb6a0f04875a3/tkthread/__init__.py#L163>`_
         where definitely thread unsafe `eval <https://github.com/python/cpython/blob/a5d6aba318ead9cc756ba750a70da41f5def3f8f/Modules/_tkinter.c#L1567-L1585>`_
         is used to send thread safe signals between tcl interpreters.
-
-        If .call is called from the Tcl thread, the locking and sending are optimized away
-        so it should be fast enough that the run_sync_soon_not_threadsafe version is unnecessary.
         """
-        # self.master.after(0, func) # does a fairly intensive wrapping to each func
+        # self.root.after_idle(lambda:self.root.after(0, func)) # does a fairly intensive wrapping to each func
         self._q.append(func)
         self.root.call('after', 'idle', self._tk_func_name)
 
     def run_sync_soon_not_threadsafe(self, func):
         """Use Tcl "after" command to schedule a function call from the main thread
 
-        Not sure if this is actually an optimization because Tcl parses this eval string fresh each time.
-        However it's definitely thread unsafe because the string is fed directly into the Tcl interpreter
-        from the current Python thread
+        If .call is called from the Tcl thread, the locking and sending are optimized away
+        so it should be fast enough.
+
+        The incantation `"after idle after 0" <https://wiki.tcl-lang.org/page/after#096aeab6629eae8b244ae2eb2000869fbe377fa988d192db5cf63defd3d8c061>`_ avoids blocking the normal event queue when
+        faced with an unending stream of tasks, for example "while True: await trio.sleep(0)".
         """
         self._q.append(func)
-        self.root.eval(f'after idle {self._tk_func_name}')
+        self.root.call('after', 'idle', 'after', 0, self._tk_func_name)
+        # Not sure if this is actually an optimization because Tcl parses this eval string fresh each time.
+        # However it's definitely thread unsafe because the string is fed directly into the Tcl interpreter
+        # from the current Python thread
+        # self.root.eval(f'after idle after 0 {self._tk_func_name}')
 
     def done_callback(self, outcome):
         """End the Tk app.
@@ -107,7 +113,7 @@ def main(task):
         task,
         display,
         run_sync_soon_threadsafe=host.run_sync_soon_threadsafe,
-        # run_sync_soon_not_threadsafe=host.run_sync_soon_not_threadsafe,  # currently recommend threadsafe only
+        run_sync_soon_not_threadsafe=host.run_sync_soon_not_threadsafe,
         done_callback=host.done_callback,
     )
     host.mainloop()
