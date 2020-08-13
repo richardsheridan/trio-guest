@@ -54,7 +54,7 @@ async def get(display):
     return 1
 
 
-async def count(display, period=1, max=60):
+async def count(display, period=.1, max=60):
     display.set_title(f"Counting every {period} seconds...")
     display.set_max(60)
     with trio.CancelScope() as cancel_scope:
